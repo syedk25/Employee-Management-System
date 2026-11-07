@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { listEmployees } from "../services/EmployeeService";
+import { deleteEmployee, listEmployees } from "../services/EmployeeService";
 
 async function fetchEmployees() {
   const { data } = await listEmployees();
@@ -18,6 +18,8 @@ function ListEmployeeComponent() {
   const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [deleteError, setDeleteError] = useState("");
+  const [deletingEmployeeId, setDeletingEmployeeId] = useState(null);
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -42,8 +44,9 @@ function ListEmployeeComponent() {
       })
       .catch((requestError) => {
         console.error("Failed to load employees:", requestError);
-        if (active)
+        if (active) {
           setError("We couldn't load the employee list. Please try again.");
+        }
       })
       .finally(() => {
         if (active) setLoading(false);
@@ -54,12 +57,37 @@ function ListEmployeeComponent() {
     };
   }, []);
 
+  async function handleDeleteEmployee(id) {
+    setDeleteError("");
+    setDeletingEmployeeId(id);
+
+    try {
+      await deleteEmployee(id);
+      setEmployees((currentEmployees) =>
+        currentEmployees.filter((employee) => employee.id !== id)
+      );
+    } catch (requestError) {
+      console.error("Failed to delete employee:", requestError);
+      setDeleteError(
+        requestError.response?.data?.message ??
+          "We couldn't delete this employee. Please try again."
+      );
+    } finally {
+      setDeletingEmployeeId(null);
+    }
+  }
+
   return (
     <section
       className="container employee-page"
       aria-labelledby="employee-title"
     >
       <h1 id="employee-title">List of Employees</h1>
+      {deleteError && (
+        <p className="text-red-700" role="alert">
+          {deleteError}
+        </p>
+      )}
       <div className="employee-table-wrap">
         {error ? (
           <div
@@ -88,6 +116,12 @@ function ListEmployeeComponent() {
           </div>
         ) : (
           <div className="table-responsive">
+            <button
+              className="btn btn-primary my-3"
+              onClick={() => addNewEmployee()}
+            >
+              Add Employee
+            </button>
             <table className="table table-striped table-bordered employee-table mb-0">
               <thead>
                 <tr>
@@ -105,9 +139,24 @@ function ListEmployeeComponent() {
                     <td>{employee.lastName}</td>
                     <td>{employee.email}</td>
                     <td>
-                      <button className=" bg-blue-400 px-4.5 py-1 rounded-lg"
-                        onClick={() => navigate(`/edit-employee/${employee.id}`)}>
+                      <button
+                        className=" bg-blue-400 px-4.5 py-1 rounded-lg"
+                        onClick={() =>
+                          navigate(`/edit-employee/${employee.id}`)
+                        }
+                      >
                         Edit
+                      </button>
+                    </td>
+                    <td>
+                      <button
+                        className="bg-red-500 px-3 py-1 rounded-lg "
+                        disabled={deletingEmployeeId !== null}
+                        onClick={() => handleDeleteEmployee(employee.id)}
+                      >
+                        {deletingEmployeeId === employee.id
+                          ? "Deleting..."
+                          : "Delete"}
                       </button>
                     </td>
                   </tr>
@@ -117,9 +166,6 @@ function ListEmployeeComponent() {
           </div>
         )}
       </div>
-      <button className="btn btn-primary mt-3" onClick={() => addNewEmployee()}>
-        Add Employee
-      </button>
     </section>
   );
 }

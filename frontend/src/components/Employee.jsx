@@ -1,9 +1,13 @@
 import { yupResolver } from "@hookform/resolvers/yup";
-import React from "react";
+import React, { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { Navigate, useParams } from "react-router-dom";
 import * as Yup from "yup";
-import { createEmployee } from "../services/EmployeeService";
+import {
+  createEmployee,
+  getEmployeeById,
+  updateEmployee,
+} from "../services/EmployeeService";
 
 const employeeSchema = Yup.object().shape({
   firstName: Yup.string().required("First name is required"),
@@ -17,32 +21,59 @@ function Employee() {
   const {
     register,
     handleSubmit,
+    reset,
     formState: { errors },
   } = useForm({
     resolver: yupResolver(employeeSchema),
-    defaultValues: {
-      firstName: "k.",
-      lastName: "syed",
-      email: "k.syed@company.com",
-    },
   });
-  const { id } = useParams(); // Get the employee ID from the URL if editing
+  const { id } = useParams();
+
+  useEffect(() => {
+    if (!id) {
+      return;
+    }
+
+    let active = true;
+
+    getEmployeeById(id)
+      .then(({ data }) => {
+        if (active) reset(data);
+      })
+      .catch((requestError) => {
+        console.error("Failed to load employee:", requestError);
+        if (active) {
+          setError(
+            requestError.response?.data?.message ??
+              "We couldn't load this employee. Please try again."
+          );
+        }
+      });
+
+    return () => {
+      active = false;
+    };
+  }, [id, reset]);
+
   async function submitEmployee(employee) {
     setError("");
     setIsCreated(false);
 
     try {
-      await createEmployee(employee);
+      if (id) {
+        await updateEmployee(id, employee);
+      } else {
+        await createEmployee(employee);
+      }
       setIsCreated(true);
     } catch (requestError) {
-      console.error("Error adding employee:", requestError);
+      console.error("Error saving employee:", requestError);
       setError(
         requestError.response?.data?.message ??
-          "Unable to add employee. Check that the backend is running and try again."
+          "Unable to save employee. Check that the backend is running and try again."
       );
     }
   }
-  function pageTitle(){
+  function pageTitle() {
     if (id) {
       return "Edit Employee";
     }
@@ -70,6 +101,7 @@ function Employee() {
           type="text"
           placeholder="First Name"
           className="border border-gray-300 rounded-2xl py-2 px-2"
+          autoComplete="given-name"
           {...register("firstName")}
           aria-invalid={Boolean(errors.firstName)}
         />
@@ -82,6 +114,7 @@ function Employee() {
           type="text"
           placeholder="Last Name"
           className="border border-gray-300 rounded-2xl py-2 px-2"
+          autoComplete="family-name"
           {...register("lastName")}
           aria-invalid={Boolean(errors.lastName)}
         />
@@ -94,6 +127,7 @@ function Employee() {
           type="email"
           placeholder="Email"
           className="border border-gray-300 rounded-2xl py-2 px-2"
+          autoComplete="email"
           {...register("email")}
           aria-invalid={Boolean(errors.email)}
         />
@@ -106,7 +140,7 @@ function Employee() {
           type="submit"
           className="bg-emerald-500 text-white px-4 py-2   hover:bg-emerald-600 rounded-2xl transition-colors duration-300"
         >
-          Submit
+          {id ? "Update Employee" : "Add Employee"}
         </button>
       </form>
     </div>
